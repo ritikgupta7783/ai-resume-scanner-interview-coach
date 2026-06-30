@@ -32,29 +32,75 @@ const interviewReportSchema = z.object({
     title: z.string().describe("The title of the job for which the interview report is generated"),
 })
 
-async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
 
 
-    const prompt = `Generate an interview report for a candidate with the following details:
-                        Resume: ${resume}
-                        Self Description: ${selfDescription}
-                        Job Description: ${jobDescription}
-`
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
+async function retryGemini(fn, retries = 3) {
+    let lastError
+
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn()
+        } catch (err) {
+            lastError = err
+
+            const message =
+                err?.message ||
+                JSON.stringify(err)
+
+            if (message.includes("503")) {
+                console.log(
+                    `Gemini busy. Retry ${i + 1}/${retries}`
+                )
+
+                await new Promise(resolve =>
+                    setTimeout(resolve, 3000)
+                )
+
+                continue
+            }
+
+            throw err
         }
-    })
+    }
 
-    return JSON.parse(response.text)
-
-
+    throw lastError
 }
 
+async function generateInterviewReport({
+    resume,
+    selfDescription,
+    jobDescription
+}) {
+
+    const prompt = `
+Generate an interview report for a candidate with the following details:
+
+Resume:
+${resume}
+
+Self Description:
+${selfDescription}
+
+Job Description:
+${jobDescription}
+`
+
+    const response = await retryGemini(() =>
+        ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: zodToJsonSchema(
+                    interviewReportSchema
+                ),
+            }
+        })
+    )
+
+    return JSON.parse(response.text)
+}
 
 
 async function generatePdfFromHtml(htmlContent) {
