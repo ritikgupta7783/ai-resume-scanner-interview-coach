@@ -7,13 +7,15 @@ const app = express()
 app.use(express.json())
 app.use(cookieParser())
 console.log("CLIENT_URL =", process.env.CLIENT_URL)
-app.use(cors({
+app.use(
+  cors({
     origin: [
-        "http://localhost:5173",
-        process.env.CLIENT_URL
+      "http://localhost:5173",
+      "https://ai-resume-scanner-interview-coach.vercel.app",
     ],
-    credentials: true
-}))
+    credentials: true,
+  })
+);
 
 /* require all the routes here */
 const authRouter = require("./routes/auth.routes")
